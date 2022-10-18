@@ -6,19 +6,57 @@ import (
 	rt "reflect"
 )
 
-// StructVerify returns an error if the structure clonning process is not correct.
+type (
+	CreatorFunc func() any
+	ClonerFunc func(x any) any
+
+	// Set supported types of fields
+	setter func(v rt.Value) any
+	// Change supported types of fields
+	changer func(v rt.Value) bool
+
+	// Setters-creator type
+	sCreator func() setter
+)
+
+type StructVerifier struct {
+	creator	CreatorFunc
+	cloner	ClonerFunc
+
+	setters		[]sCreator	// user defined setters
+	changers	[]changer	// user defined changers
+}
+
+func NewStructVerifier(creator CreatorFunc, cloner ClonerFunc) *StructVerifier {
+	return &StructVerifier{
+		creator: creator,
+		cloner:	cloner,
+	}
+}
+
+func (sv *StructVerifier) AddSetters(setters ...sCreator) *StructVerifier {
+	sv.setters = append(sv.setters, setters...)
+	return sv
+}
+
+func (sv *StructVerifier) AddChangers(changers ...changer) *StructVerifier {
+	sv.changers = append(sv.changers, changers...)
+	return sv
+}
+
+// Verify returns an error if the structure clonning process is not correct.
 // It takes the creator function that should create a new instance of the structure, and
 // the cloner function that should create a clone of the given argument and return it.
-// NOTE: Only exported fields can be verified.
-func StructVerify(creator func()any, cloner func(x any) any) error {
+// NOTE: Only exported fields can be verified!
+func (sv *StructVerifier) Verify() error {
 	// Make an original value
-	orig, err := autoFill(creator())
+	orig, err := sv.autoFill()
 	if err != nil {
 		return fmt.Errorf("cannot autofill original structure: %w", err)
 	}
 
 	// And the reference to compare after clone modifications
-	ref, err := autoFill(creator())
+	ref, err := sv.autoFill()
 	if err != nil {
 		return fmt.Errorf("cannot autofill reference structure: %w", err)
 	}
@@ -30,12 +68,12 @@ func StructVerify(creator func()any, cloner func(x any) any) error {
 	}
 
 	// Create clone for each existing field and update the field, check correctness
-	for _, field := range structFields(creator()) {
+	for _, field := range structFields(sv.creator()) {
 		// Make a clone
-		clone := cloner(orig)
+		clone := sv.cloner(orig)
 
 		// Update field in the clone
-		if err := autoChange(clone, field); err != nil {
+		if err := sv.autoChange(clone, field); err != nil {
 			return fmt.Errorf("cannot update field %q in the CLONE: %w", field,  err)
 		}
 	
@@ -55,84 +93,46 @@ func StructVerify(creator func()any, cloner func(x any) any) error {
 	return nil
 }
 
-// autoFill automatically fills the fields of the structure of supported types. It returns
+// autoFill automatically creates struct and fills the fields of supported types. It returns
 // interface to the filled structure or an error if structure contains fields of unsupported types
-func autoFill(si any) (any, error) {
+func (sv *StructVerifier) autoFill() (any, error) {
+	// Create empty structure instance
+	si := sv.creator()
+
+	// Convert inerface to reflect.Value
 	s := rt.ValueOf(si).Elem()
 
-	// Closure to automate creation of int64 values
-	var i64v int64
-	i64val := func() int64 {
-		i64v++
-		return i64v
-	}
-
-	// Closure to automate creation of slices of int64
-	i64vals:= func() []int64 {
-		i64v++
-		l := i64v*2
-		s := make([]int64, 0, l)
-		for i := int64(0); i < l; i++ {
-			s = append(s, i64v + i)
-		}
-		return s
-	}
-
-	// Closure to automate creation of slices of strings
-	nStrs := 2
-	mkStrs := func() []string {
-		s := make([]string, 0, nStrs + 1)
-		baseChar := fmt.Sprintf("%c", ('a' - 2) + nStrs % ('z' - 'a'))
-		for i := 0; i < nStrs; i++ {
-			s = append(s, strings.Repeat(baseChar+"_", nStrs))
-		}
-		nStrs++
-
-		return s
-	}
-
-	// Closure to automate creation of map[string]any
-	mkMapStrAny := func() map[string]any {
-		m := make(map[string]any, nStrs)
-		baseChar := fmt.Sprintf("%c", ('a' - 2) + nStrs % ('z' - 'a'))
-		for i := 0; i < nStrs; i++ {
-			m[strings.Repeat(baseChar+"_", nStrs+i)] = (i+1) * 3 / 2
-		}
-		nStrs++
-
-		return m
+	// Create new user defined setters to refresh initial values
+	uSetters := make([]setter, 0, len(sv.setters))
+	for _, mkSetter := range sv.setters {
+		uSetters = append(uSetters, mkSetter())
 	}
 
 	for i := 0; i < s.NumField(); i++ {
 		// Get the i-field
 		f := s.Field(i)
+		name := s.Type().Field(i).Name
 
-		// Check for support types, set some values
-		switch f.Type().Kind() {
-			case rt.Int64:
-				f.Set(rt.ValueOf(i64val()))
-
-			case rt.Map:
-				switch f.Interface().(type) {
-				case map[string]any:
-					f.Set(rt.ValueOf(mkMapStrAny()))
-				default:
-					return nil, fmt.Errorf("field %q has unsupported type %q", s.Type().Field(i).Name, f.Type())
-				}
-
-			case rt.Slice:
-				switch f.Interface().(type) {
-				case []string:
-					f.Set(rt.ValueOf(mkStrs()))
-				case []int64:
-					f.Set(rt.ValueOf(i64vals()))
-				default:
-					return nil, fmt.Errorf("field %q has unsupported type %q", s.Type().Field(i).Name, f.Type())
-				}
-
-			default:
-				return nil, fmt.Errorf("field %q has unsupported type %q", s.Type().Field(i).Name, f.Type().Kind())
+		// Filter unexported fields
+		if c := name[0]; c == '_' || (c >= 'a' && c <= 'z') {
+			// Skip this field
+			continue
 		}
+
+		// Try to set values using user defined and embedded setters
+		for _, setter := range append(uSetters, setters()...) {
+			if v := setter(f); v != nil {
+				// Set field value to v
+				f.Set(rt.ValueOf(v))
+				// Go to next field
+				goto nextField
+			}
+		}
+
+		// No suitable setter - unsupported type of field
+		return nil, fmt.Errorf("field %q has unsupported type to set - %q", name, f.Type())
+
+		nextField:
 	}
 
 	return si, nil
@@ -144,7 +144,13 @@ func structFields(si any) []string {
 
 	s := rt.ValueOf(si).Elem()
 	for i := 0; i < s.NumField(); i++ {
-		fields = append(fields, s.Type().Field(i).Name)
+		// Filter unexported fields
+		name := s.Type().Field(i).Name
+		if c := name[0]; c == '_' || (c >= 'a' && c <= 'z') {
+			// Skip this field
+			continue
+		}
+		fields = append(fields, name)
 	}
 
 	return fields
@@ -152,7 +158,7 @@ func structFields(si any) []string {
 
 // autoFill automatically changed the fields of the structure of supported types.
 // It returns an error if structure contains fields of unsupported types
-func autoChange(si any, field string) error {
+func (sv *StructVerifier) autoChange(si any, field string) error {
 	s := rt.ValueOf(si).Elem()
 
 	for i := 0; i < s.NumField(); i++ {
@@ -163,38 +169,136 @@ func autoChange(si any, field string) error {
 		// Get the current struct's field
 		f := s.Field(i)
 
-		switch f.Type().Kind() {
-			case rt.Int64:
-				// Mult the value to 2
-				f.Set(rt.ValueOf(f.Interface().(int64) * 2))
-			case rt.Map:
-				if m, ok := f.Interface().(map[string]any); ok {
-					// Update only one value if exists
-					for k, v := range m {
-						// Mult the value to 2
-						m[k] = v.(int) * 2
-						break
-					}
-				} else {
-					return fmt.Errorf("field %q has unsupported type %q", f.Type().Field(i).Name, f.Type())
-				}
-			case rt.Slice:
-				if strSlice, ok := f.Interface().([]string); ok {
-					// Concatenate the last value in slice with itself
-					strSlice[len(strSlice)-1] += strSlice[len(strSlice)-1]
-				} else if i64Slice, ok := f.Interface().([]int64); ok {
-					// Mult the last value in slice to 2
-					i64Slice[len(i64Slice)-1] *= 2
-				} else {
-					return fmt.Errorf("field %q has unsupported type %q", f.Type().Field(i).Name, f.Type())
-				}
-			default:
-				return fmt.Errorf("field %q has unsupported type %q", s.Type().Field(i).Name, f.Type().Kind())
+		// Try to change values using user defined and embedded changers
+		for _, changer := range append(sv.changers, changers()...) {
+			if changer(f) {
+				// Ok, field found and updated
+				return nil
+			}
 		}
 
-		// OK, field found and updated
-		return nil
+		// No suitable setter - unsupported type of field
+		return fmt.Errorf("field %q has unsupported type to change - %q", s.Type().Field(i).Name, f.Type())
 	}
 
 	return fmt.Errorf("field %q was not found in structure", field)
+}
+
+func setters() []setter {
+	var i64v int64
+	var nStrs int = 2
+
+	return []setter {
+		// int64
+		func(v rt.Value) any {
+			if _, ok := v.Interface().(int64); !ok {
+				return nil
+			}
+
+			i64v++
+
+			return i64v
+		},
+
+		// []int64
+		func(v rt.Value) any {
+			if _, ok := v.Interface().([]int64); !ok {
+				return nil
+			}
+
+			i64v++
+
+			l := i64v*2	// slice length
+			s := make([]int64, 0, l)
+			for i := int64(0); i < l; i++ {
+				s = append(s, i64v + i)
+			}
+
+			return s
+		},
+
+		// []string
+		func(v rt.Value) any {
+			if _, ok := v.Interface().([]string); !ok {
+				return nil
+			}
+
+			s := make([]string, 0, nStrs + 1)
+			baseChar := fmt.Sprintf("%c", ('a' - 2) + nStrs % ('z' - 'a'))
+			for i := 0; i < nStrs; i++ {
+				s = append(s, strings.Repeat(baseChar+"_", nStrs))
+			}
+			nStrs++
+
+			return s
+		},
+
+		// map[string]any
+		func(v rt.Value) any {
+			if _, ok := v.Interface().(map[string]any); !ok {
+				return nil
+			}
+
+			m := make(map[string]any, nStrs)
+			baseChar := fmt.Sprintf("%c", ('a' - 2) + nStrs % ('z' - 'a'))
+			for i := 0; i < nStrs; i++ {
+				m[strings.Repeat(baseChar+"_", nStrs+i)] = (i+1) * 3 / 2
+			}
+			nStrs++
+
+			return m
+		},
+	}
+}
+
+func changers() []changer {
+	return []changer {
+		// int64 - mult the value to 2
+		func(v rt.Value) bool {
+			iv, ok := v.Interface().(int64)
+			if !ok {
+				return false
+			}
+			v.Set(rt.ValueOf(iv * 2))
+			return true
+		},
+		// []string - concatenate the last value in the slice with itself
+		func(v rt.Value) bool {
+			ss, ok := v.Interface().([]string)
+			if !ok {
+				return false
+			}
+
+			ss[len(ss)-1] += ss[len(ss)-1]
+
+			return true
+		},
+		// []int64 - mult the last value in the slice to 2
+		func(v rt.Value) bool {
+			is, ok := v.Interface().([]int64)
+			if !ok {
+				return false
+			}
+
+			is [len(is)-1] *= 2
+
+			return true
+		},
+		// map[string]any - mult each value to 2
+		func(v rt.Value) bool {
+			m, ok := v.Interface().(map[string]any)
+			if !ok {
+				return false
+			}
+
+			// Update only one random value if exists
+			for k, v := range m {
+				// Mult the value to 2
+				m[k] = v.(int) * 2
+				break
+			}
+
+			return true
+		},
+	}
 }
