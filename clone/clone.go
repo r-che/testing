@@ -120,7 +120,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 		}
 
 		// Try to set values using user defined and embedded setters
-		for _, setter := range append(uSetters, setters()...) {
+		for _, setter := range append(uSetters, embSetters()...) {
 			if v := setter(f); v != nil {
 				// Set field value to v
 				f.Set(rt.ValueOf(v))
@@ -170,7 +170,7 @@ func (sv *StructVerifier) autoChange(si any, field string) error {
 		f := s.Field(i)
 
 		// Try to change values using user defined and embedded changers
-		for _, changer := range append(sv.changers, changers()...) {
+		for _, changer := range append(sv.changers, embChangers...) {
 			if changer(f) {
 				// Ok, field found and updated
 				return nil
@@ -184,7 +184,7 @@ func (sv *StructVerifier) autoChange(si any, field string) error {
 	return fmt.Errorf("field %q was not found in structure", field)
 }
 
-func setters() []setter {
+func embSetters() []setter {
 	var i64v int64
 	var nStrs int = 2
 
@@ -251,54 +251,53 @@ func setters() []setter {
 	}
 }
 
-func changers() []changer {
-	return []changer {
-		// int64 - mult the value to 2
-		func(v rt.Value) bool {
-			iv, ok := v.Interface().(int64)
-			if !ok {
-				return false
-			}
-			v.Set(rt.ValueOf(iv * 2))
-			return true
-		},
-		// []string - concatenate the last value in the slice with itself
-		func(v rt.Value) bool {
-			ss, ok := v.Interface().([]string)
-			if !ok {
-				return false
-			}
+// Embedded changers
+var embChangers = []changer{
+	// int64 - mult the value to 2
+	func(v rt.Value) bool {
+		iv, ok := v.Interface().(int64)
+		if !ok {
+			return false
+		}
+		v.Set(rt.ValueOf(iv * 2))
+		return true
+	},
+	// []string - concatenate the last value in the slice with itself
+	func(v rt.Value) bool {
+		ss, ok := v.Interface().([]string)
+		if !ok {
+			return false
+		}
 
-			ss[len(ss)-1] += ss[len(ss)-1]
+		ss[len(ss)-1] += ss[len(ss)-1]
 
-			return true
-		},
-		// []int64 - mult the last value in the slice to 2
-		func(v rt.Value) bool {
-			is, ok := v.Interface().([]int64)
-			if !ok {
-				return false
-			}
+		return true
+	},
+	// []int64 - mult the last value in the slice to 2
+	func(v rt.Value) bool {
+		is, ok := v.Interface().([]int64)
+		if !ok {
+			return false
+		}
 
-			is [len(is)-1] *= 2
+		is [len(is)-1] *= 2
 
-			return true
-		},
-		// map[string]any - mult each value to 2
-		func(v rt.Value) bool {
-			m, ok := v.Interface().(map[string]any)
-			if !ok {
-				return false
-			}
+		return true
+	},
+	// map[string]any - mult each value to 2
+	func(v rt.Value) bool {
+		m, ok := v.Interface().(map[string]any)
+		if !ok {
+			return false
+		}
 
-			// Update only one random value if exists
-			for k, v := range m {
-				// Mult the value to 2
-				m[k] = v.(int) * 2
-				break
-			}
+		// Update only one random value if exists
+		for k, v := range m {
+			// Mult the value to 2
+			m[k] = v.(int) * 2
+			break
+		}
 
-			return true
-		},
-	}
+		return true
+	},
 }
