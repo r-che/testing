@@ -1,98 +1,182 @@
 package clone
 
 import (
-	"fmt"
+	"testing"
 	"reflect"
 )
 
-type Config struct {
-	Int64param	int64
-	IntList		[]int
-	Int64List	[]int64
-	StringList	[]string
-	MapVals		map[string]any
-}
-func NewConfig() *Config {
-	return &Config{}
-}
-func (c *Config) Clone() *Config {
-	// Create a simple copy of the configuration
-	rv := *c
-
-	//
-	// Need to copy all complex fields (slices, maps)
-	//
-
-	rv.IntList = make([]int, len(c.IntList))
-	copy(rv.IntList, c.IntList)
-
-	rv.Int64List = make([]int64, len(c.Int64List))
-	copy(rv.Int64List, c.Int64List)
-
-	rv.StringList = make([]string, len(c.StringList))
-	copy(rv.StringList, c.StringList)
-
-	rv.MapVals = make(map[string]any, len(c.MapVals))
-	for k, v := range c.MapVals {
-		rv.MapVals[k] = v
+func TestErrSVError(t *testing.T) {
+	want := `Test ErrSVError: 1, 'one'`
+	if err := NewErrSV("Test ErrSVError: %d, '%s'", 1, "one"); err.Error() != want {
+		t.Errorf("ErrSV.Error() returned %q, want - %q", err, want)
 	}
-
-	return &rv
 }
 
-func ExampleStructVerify() {
+func TestOrigFillFail(t *testing.T) {
 	sv := NewStructVerifier(
-		// Creator function
-		func() any { return NewConfig() },
-		// Cloner function
-		func(x any) any {
-			c, ok := x.(*Config)
-			if ! ok {
-				panic(fmt.Sprintf("unsupported type to clone: got - %T, want - *Config", x))
-			}
-			return c.Clone()
-	}).
-		AddSetters(intSliceSetter).
-		AddChangers(intSliceChanger)
+		func() any { return &struct{B bool}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	)
 
-	err := sv.Verify()
-
-	if err != nil {
-		fmt.Printf("ERROR: %v\n", err)
-	} else {
-		fmt.Printf("Verification successful")
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, because setter for bool was not porvided")
+	case *ErrSVOrigFill:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVOrigFill", err, err)
 	}
-	// Output:
-	// Verification successful
 }
 
-func intSliceSetter() setter {
-	var iv int
-	return func(v reflect.Value) any {
-		if _, ok := v.Interface().([]int); !ok {
+func TestRerFillFail(t *testing.T) {
+	exhausted := false
+	sv := NewStructVerifier(
+		func() any { return &struct{B bool}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	).AddSetters(func() setter {
+		return func(v reflect.Value) any {
+			if exhausted { return nil }
+			if _, ok := v.Interface().(bool); ok {
+				exhausted = true
+				return true
+			}
 			return nil
 		}
+	})
 
-		iv++
-
-		l := iv*2	// slice length
-		s := make([]int, 0, l)
-		for i := 0; i < l; i++ {
-			s = append(s, iv + i)
-		}
-
-		return s
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, because reference object should not be filled")
+	case *ErrSVRefFill:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVRefFill", err, err)
 	}
 }
 
-// []int - mult the last value in the slice to 2
-func intSliceChanger(v reflect.Value) bool {
-	is, ok := v.Interface().([]int)
-	if !ok {
-		return false
+func TestOrigRefEqualFail(t *testing.T) {
+	val := false
+	sv := NewStructVerifier(
+		func() any { return &struct{B bool}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	).AddSetters(func() setter {
+		return func(v reflect.Value) any {
+			if _, ok := v.Interface().(bool); ok {
+				v := val
+				val = !val
+				return v
+			}
+			return nil
+		}
+	})
+
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, because reference object should not be filled")
+	case *ErrSVRefOrigEqual:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVRefOrigEqual", err, err)
 	}
+}
 
-	is [len(is)-1] *= 2
+func Test_autoChangeFail(t *testing.T) {
+	sv := NewStructVerifier(
+		func() any { return &struct{B bool}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	).AddSetters(func() setter {
+		return func(v reflect.Value) any {
+			if _, ok := v.Interface().(bool); ok {
+				return true
+			}
+			return nil
+		}
+	})
 
-	return true
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, because changer for bool was not provided")
+	case *ErrSVChange:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVChange", err, err)
+	}
+}
+
+func TestOrigChangedFail(t *testing.T) {
+	sv := NewStructVerifier(
+		func() any { return &struct{S []int}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	).AddSetters(func() setter {
+		return func(v reflect.Value) any {
+			if _, ok := v.Interface().([]int); ok {
+				return []int{10}
+			}
+			return nil
+		}
+	}).AddChangers(func(v reflect.Value) bool {
+		is, ok := v.Interface().([]int)
+		if !ok {
+			return false
+		}
+		is[0] *= 2
+
+		return true
+	})
+
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, original value should be changed after clone update")
+	case *ErrSVOrigChanged:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVOrigChanged", err, err)
+	}
+}
+
+func TestCloneOrigEqualFail(t *testing.T) {
+	sv := NewStructVerifier(
+		func() any { return &struct{S []int}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	).AddSetters(func() setter {
+		return func(v reflect.Value) any {
+			if _, ok := v.Interface().([]int); ok {
+				return []int{10}
+			}
+			return nil
+		}
+	}).AddChangers(func(v reflect.Value) bool {
+		_, ok := v.Interface().([]int)
+		if !ok {
+			return false
+		}
+		// No not update anything
+
+		return true
+	})
+
+	switch err := sv.Verify(); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, clone should be equal original after change")
+	case *ErrSVCloneOrigEqual:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVCloneOrigEqual", err, err)
+	}
+}
+
+func Test_autoChangeFieldNotFound(t *testing.T) {
+	sv := NewStructVerifier(
+		func() any { return &struct{B bool}{} },	// creator function
+		func(x any) any { return x },				// cloner function
+	)
+
+	switch err := sv.autoChange(&struct{B bool}{}, "NxField"); err.(type) {
+	case nil:
+		t.Errorf("returned no error but must fail, autoChange called for non existing field")
+	case *ErrSVFieldNotFound:
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVFieldNotFound", err, err)
+	}
 }
