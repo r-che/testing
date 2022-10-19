@@ -11,12 +11,12 @@ type (
 	ClonerFunc func(x any) any
 
 	// Set supported types of fields
-	setter func(v rt.Value) any
+	Setter func(v rt.Value) any
 	// Change supported types of fields
-	changer func(v rt.Value) bool
+	Changer func(v rt.Value) bool
 
 	// Setters-creator type
-	sCreator func() setter
+	sCreator func() Setter
 )
 
 type StructVerifier struct {
@@ -24,7 +24,7 @@ type StructVerifier struct {
 	cloner	ClonerFunc
 
 	setters		[]sCreator	// user defined setters
-	changers	[]changer	// user defined changers
+	changers	[]Changer	// user defined changers
 }
 
 //
@@ -65,7 +65,7 @@ func (sv *StructVerifier) AddSetters(setters ...sCreator) *StructVerifier {
 	return sv
 }
 
-func (sv *StructVerifier) AddChangers(changers ...changer) *StructVerifier {
+func (sv *StructVerifier) AddChangers(changers ...Changer) *StructVerifier {
 	sv.changers = append(sv.changers, changers...)
 	return sv
 }
@@ -130,7 +130,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 	s := rt.ValueOf(si).Elem()
 
 	// Create new user defined setters to refresh initial values
-	uSetters := make([]setter, 0, len(sv.setters))
+	uSetters := make([]Setter, 0, len(sv.setters))
 	for _, mkSetter := range sv.setters {
 		uSetters = append(uSetters, mkSetter())
 	}
@@ -211,11 +211,11 @@ func (sv *StructVerifier) autoChange(si any, field string) error {
 	return &ErrSVFieldNotFound{NewErrSV("field %q was not found in the structure %#v", field, s.Interface())}
 }
 
-func embSetters() []setter {
+func embSetters() []Setter {
 	var i64v int64
 	var nStrs int = 2
 
-	return []setter {
+	return []Setter {
 		// int64
 		func(v rt.Value) any {
 			if _, ok := v.Interface().(int64); !ok {
@@ -279,7 +279,7 @@ func embSetters() []setter {
 }
 
 // Embedded changers
-var embChangers = []changer{
+var embChangers = []Changer{
 	// int64 - mult the value to 2
 	func(v rt.Value) bool {
 		iv, ok := v.Interface().(int64)

@@ -33,7 +33,7 @@ func TestRerFillFail(t *testing.T) {
 	sv := NewStructVerifier(
 		func() any { return &struct{B bool}{} },	// creator function
 		func(x any) any { return x },				// cloner function
-	).AddSetters(func() setter {
+	).AddSetters(func() Setter {
 		return func(v reflect.Value) any {
 			if exhausted { return nil }
 			if _, ok := v.Interface().(bool); ok {
@@ -59,7 +59,7 @@ func TestOrigRefEqualFail(t *testing.T) {
 	sv := NewStructVerifier(
 		func() any { return &struct{B bool}{} },	// creator function
 		func(x any) any { return x },				// cloner function
-	).AddSetters(func() setter {
+	).AddSetters(func() Setter {
 		return func(v reflect.Value) any {
 			if _, ok := v.Interface().(bool); ok {
 				v := val
@@ -84,7 +84,7 @@ func Test_autoChangeFail(t *testing.T) {
 	sv := NewStructVerifier(
 		func() any { return &struct{B bool}{} },	// creator function
 		func(x any) any { return x },				// cloner function
-	).AddSetters(func() setter {
+	).AddSetters(func() Setter {
 		return func(v reflect.Value) any {
 			if _, ok := v.Interface().(bool); ok {
 				return true
@@ -107,7 +107,7 @@ func TestOrigChangedFail(t *testing.T) {
 	sv := NewStructVerifier(
 		func() any { return &struct{S []int}{} },	// creator function
 		func(x any) any { return x },				// cloner function
-	).AddSetters(func() setter {
+	).AddSetters(func() Setter {
 		return func(v reflect.Value) any {
 			if _, ok := v.Interface().([]int); ok {
 				return []int{10}
@@ -138,7 +138,7 @@ func TestCloneOrigEqualFail(t *testing.T) {
 	sv := NewStructVerifier(
 		func() any { return &struct{S []int}{} },	// creator function
 		func(x any) any { return x },				// cloner function
-	).AddSetters(func() setter {
+	).AddSetters(func() Setter {
 		return func(v reflect.Value) any {
 			if _, ok := v.Interface().([]int); ok {
 				return []int{10}

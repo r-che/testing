@@ -68,7 +68,7 @@ func ExampleStructVerify() {
 	// Verification successful
 }
 
-func intSliceSetter() setter {
+func intSliceSetter() Setter {
 	var iv int
 	return func(v reflect.Value) any {
 		if _, ok := v.Interface().([]int); !ok {
