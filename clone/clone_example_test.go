@@ -5,67 +5,65 @@ import (
 	"reflect"
 )
 
-type TestConfig struct {
-	Int64param	int64
-	IntList		[]int
-	Int64List	[]int64
-	StringList	[]string
-	MapVals		map[string]any
-	unexported1		bool
-	_Unexported2	any
-}
-func NewTestConfig() *TestConfig {
-	return &TestConfig{}
-}
-func (c *TestConfig) Clone() *TestConfig {
-	// Create a simple copy of the configuration
-	rv := *c
-
-	//
-	// Need to copy all complex fields (slices, maps)
-	//
-
-	rv.IntList = make([]int, len(c.IntList))
-	copy(rv.IntList, c.IntList)
-
-	rv.Int64List = make([]int64, len(c.Int64List))
-	copy(rv.Int64List, c.Int64List)
-
-	rv.StringList = make([]string, len(c.StringList))
-	copy(rv.StringList, c.StringList)
-
-	rv.MapVals = make(map[string]any, len(c.MapVals))
-	for k, v := range c.MapVals {
-		rv.MapVals[k] = v
-	}
-
-	return &rv
-}
-
 func ExampleStructVerify() {
+	//
+	// Do successful verification
+	//
 	sv := NewStructVerifier(
 		// Creator function
-		func() any { return NewTestConfig() },
+		func() any { return New_TestConfig() },
 		// Cloner function
 		func(x any) any {
-			c, ok := x.(*TestConfig)
+			c, ok := x.(*_TestConfig)
 			if ! ok {
-				panic(fmt.Sprintf("unsupported type to clone: got - %T, want - *TestConfig", x))
+				panic(fmt.Sprintf("unsupported type to clone: got - %T, want - *_TestConfig", x))
 			}
+			// Call clone function
 			return c.Clone()
 	}).
 		AddSetters(intSliceSetter).
 		AddChangers(intSliceChanger)
 
+	// Run verification
 	err := sv.Verify()
-
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 	} else {
-		fmt.Printf("Verification successful")
+		fmt.Printf("Verification successful\n")
 	}
+
+	//
+	// Do unsuccessful verification
+	//
+	sv = NewStructVerifier(
+		// Creator function
+		func() any { return New_TestConfig() },
+		// Cloner function
+		func(x any) any {
+			c, ok := x.(*_TestConfig)
+			if ! ok {
+				panic(fmt.Sprintf("unsupported type to clone: got - %T, want - *_TestConfig", x))
+			}
+			// XXX Create a copy of the original WITHOUT the actual cloning operation. This will
+			// XXX modify the slices in the original structure after changing the fake-clone
+			rv := *c
+			return &rv
+		},
+	).
+		AddSetters(intSliceSetter).
+		AddChangers(intSliceChanger)
+
+	// Run verification
+	err = sv.Verify()
+	if err == nil {
+		fmt.Println("ERROR: verifier did not catch the original structure modification")
+	} else {
+		fmt.Printf("Got expected error: %T\n", err)
+	}
+
 	// Output:
 	// Verification successful
+	// Got expected error: *clone.ErrSVOrigChanged
 }
 
 func intSliceSetter() Setter {
