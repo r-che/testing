@@ -6,25 +6,28 @@ import (
 	"reflect"
 )
 
-type (
-	CreatorFunc func() any
-	ClonerFunc func(x any) any
-
-	// Set supported types of fields
-	Setter func(v reflect.Value) any
-	// Change supported types of fields
-	Changer func(v reflect.Value) bool
-
-	// Setters-creator type
-	sCreator func() Setter
-)
+// CreatorFunc defines a function type to create a structure of the tested type
+// and return a pointer to it.
+type CreatorFunc func() any
+// ClonerFunc defines the type of function that takes a pointer to a structure
+// of the tested type (created by CreatorFunc) and returns its clone.
+type ClonerFunc func(x any) any
+// Setter defines the type of function used in Verify method to automatically
+// fill a field of an appropriate type.
+type Setter func(v reflect.Value) any
+// Changer defines the type of function used in Verify method to automatically
+// change the field of the appropriate type.
+type Changer func(v reflect.Value) bool
+// SetterCreator defines the type of function used by the Verify method to
+// create Setter functions.
+type SetterCreator func() Setter
 
 type StructVerifier struct {
 	creator	CreatorFunc
 	cloner	ClonerFunc
 
-	setters		[]sCreator	// user defined setters
-	changers	[]Changer	// user defined changers
+	setters		[]SetterCreator	// user defined setters
+	changers	[]Changer		// user defined changers
 }
 
 const initialSeed = 2
@@ -32,23 +35,43 @@ const initialSeed = 2
 //
 // Errors
 //
-type StructVerifierError struct {
+type structVerifierError struct {
 	err error
 }
-func (esv StructVerifierError) Error() string {
+func (esv structVerifierError) Error() string {
 	return esv.err.Error()
 }
-func newErrSV(format string, args ...any) StructVerifierError {
-	return StructVerifierError{fmt.Errorf(format, args...)}
+func newErrSV(format string, args ...any) structVerifierError {
+	return structVerifierError{fmt.Errorf(format, args...)}
 }
 type (
-	ErrSVOrigFill struct { StructVerifierError }
-	ErrSVRefFill struct { StructVerifierError }
-	ErrSVRefOrigEqual struct { StructVerifierError }
-	ErrSVChange struct { StructVerifierError }
-	ErrSVOrigChanged struct { StructVerifierError }
-	ErrSVCloneOrigEqual struct { StructVerifierError }
-	ErrSVFieldNotFound struct { StructVerifierError }
+	// ErrSVChange represents an error that occurs when the value of a field in the
+	// tested structure cannot be changed.
+	ErrSVChange struct { structVerifierError }
+
+	// ErrSVCloneOrigEqual represents an error occurred when the initial value of a cloned
+	// structure field was not changed after the Setter function was applied to it.
+	ErrSVCloneOrigEqual struct { structVerifierError }
+
+	// ErrSVFieldNotFound represents the error which occurs if a clone does not
+	// contain the original structure field.
+	ErrSVFieldNotFound struct { structVerifierError }
+
+	// ErrSVOrigChanged represents the error occurred when the initial structure
+	// (cloning source) was changed after modification of the cloned structure.
+	ErrSVOrigChanged struct { structVerifierError }
+
+	// ErrSVOrigFill represents an error, that occurs if the source structure
+	// cannot be filled automatically.
+	ErrSVOrigFill struct { structVerifierError }
+
+	// ErrSVRefFill represents an error that occurs if the reference structure
+	// cannot be automatically filled.
+	ErrSVRefFill struct { structVerifierError }
+
+	// ErrSVRefOrigEqual represents an error if the original and the reference
+	// structures are different immediately after creation (before the clone changes).
+	ErrSVRefOrigEqual struct { structVerifierError }
 )
 
 //
@@ -62,7 +85,7 @@ func NewStructVerifier(creator CreatorFunc, cloner ClonerFunc) *StructVerifier {
 	}
 }
 
-func (sv *StructVerifier) AddSetters(setters ...sCreator) *StructVerifier {
+func (sv *StructVerifier) AddSetters(setters ...SetterCreator) *StructVerifier {
 	sv.setters = append(sv.setters, setters...)
 	return sv
 }
@@ -75,6 +98,7 @@ func (sv *StructVerifier) AddChangers(changers ...Changer) *StructVerifier {
 // Verify returns an error if the structure clonning process is not correct.
 // It takes the creator function that should create a new instance of the structure, and
 // the cloner function that should create a clone of the given argument and return it.
+//
 // NOTE: Only exported fields can be verified!
 func (sv *StructVerifier) Verify() error {
 	// Make an original value
@@ -284,7 +308,7 @@ func embSetters() []Setter {
 
 // Embedded changers
 func embChangers() []Changer {
-		return []Changer{
+	return []Changer{
 		// int64 - mult the value to initialSeed (2)
 		func(v reflect.Value) bool {
 			iv, ok := v.Interface().(int64)

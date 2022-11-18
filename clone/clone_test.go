@@ -8,7 +8,7 @@ import (
 
 func TestErrSVError(t *testing.T) {
 	want := `Test ErrSVError: 1, 'one'`
-	if err := NewErrSV("Test ErrSVError: %d, '%s'", 1, "one"); err.Error() != want {
+	if err := newErrSV("Test ErrSVError: %d, '%s'", 1, "one"); err.Error() != want {
 		t.Errorf("ErrSV.Error() returned %q, want - %q", err, want)
 	}
 }
