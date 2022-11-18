@@ -3,12 +3,14 @@ package debug
 import "fmt"
 
 type PrintFlag byte
+const PrintNoFlags	=	0
 const (
 	PrintType		=	PrintFlag(1) << iota
 	PrintCommaSep
 	PrintNoSharp
 	PrintGoSyntax
 	PrintLenCap
+	PrintValType
 )
 
 func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
@@ -16,10 +18,7 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	obr, cbr := "[", "]"
 
 	// Get flags if specified
-	var flags PrintFlag
-	if len(flagsVariadic) != 0 {
-		flags = flagsVariadic[0]
-	}
+	flags := mergeFlags(flagsVariadic)
 
 	// Is printing of slice type required?
 	if flags & PrintType != 0 {
@@ -39,7 +38,7 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	if flags & PrintNoSharp == 0 {
 		outFmt += "#"
 	}
-	outFmt += "%d:%"
+	outFmt += "%d%s:%"
 	if flags & PrintGoSyntax != 0 {
 		outFmt += "#"
 	}
@@ -48,7 +47,15 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	// Print open brace
 	fmt.Print(obr)
 	for i, v := range slice {
-		fmt.Printf(outFmt, i, v)
+		// Type of value string
+		var valType string
+		// Is it required?
+		if flags & PrintValType != 0 {
+			// Set value
+			valType = fmt.Sprintf("(%T)", v)
+		}
+
+		fmt.Printf(outFmt, i, valType, v)
 		if i != len(slice) - 1 {
 			if flags & PrintCommaSep != 0 {
 				fmt.Print(",")
@@ -58,4 +65,27 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	}
 	// Print closed brace
 	fmt.Println(cbr)
+}
+
+func mergeFlags(flagsVariadic []PrintFlag) PrintFlag {
+	switch len(flagsVariadic) {
+	// No flags
+	case 0:
+		// Return empty flags value
+		return PrintNoFlags
+
+	// Flags provided
+	case 1:
+		// Return flags value from the first element of flagsVariadic
+		return flagsVariadic[0]
+
+	// Merge flags from all items of flagsVariadic
+	default:
+		var flags PrintFlag
+		for _, flag := range flagsVariadic {
+			flags |= flag
+		}
+
+		return flags
+	}
 }
