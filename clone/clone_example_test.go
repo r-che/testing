@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-func ExampleStructVerifier() {
+func ExampleStructVerifierSuccess() {
 	//
 	// Do successful verification
 	//
@@ -32,10 +32,15 @@ func ExampleStructVerifier() {
 		fmt.Printf("Verification successful\n")
 	}
 
+	// Output:
+	// Verification successful
+}
+
+func ExampleStructVerifierFail() {
 	//
 	// Do unsuccessful verification
 	//
-	verifier = NewStructVerifier(
+	verifier := NewStructVerifier(
 		// Creator function
 		func() any { return NewTestConfig() },
 		// Cloner function
@@ -54,7 +59,7 @@ func ExampleStructVerifier() {
 		AddChangers(intSliceChanger)
 
 	// Run verification
-	err = verifier.Verify()
+	err := verifier.Verify()
 	if err == nil {
 		fmt.Println("ERROR: verifier did not catch the original structure modification")
 	} else {
@@ -62,7 +67,6 @@ func ExampleStructVerifier() {
 	}
 
 	// Output:
-	// Verification successful
 	// Got expected error: *clone.ErrSVOrigChanged
 }
 
