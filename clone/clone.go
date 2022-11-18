@@ -3,7 +3,7 @@ package clone
 import (
 	"fmt"
 	"strings"
-	rt "reflect"
+	"reflect"
 )
 
 type (
@@ -11,9 +11,9 @@ type (
 	ClonerFunc func(x any) any
 
 	// Set supported types of fields
-	Setter func(v rt.Value) any
+	Setter func(v reflect.Value) any
 	// Change supported types of fields
-	Changer func(v rt.Value) bool
+	Changer func(v reflect.Value) bool
 
 	// Setters-creator type
 	sCreator func() Setter
@@ -90,7 +90,7 @@ func (sv *StructVerifier) Verify() error {
 	}
 
 	// They must be the same
-	if !rt.DeepEqual(orig, ref) {
+	if !reflect.DeepEqual(orig, ref) {
 		return &ErrSVRefOrigEqual{newErrSV("newly created and filled structures (original and reference)" +
 			" ARE NOT SAME: orig - %#v, ref - %#v", orig, ref)}
 	}
@@ -106,13 +106,13 @@ func (sv *StructVerifier) Verify() error {
 		}
 	
 		// Compare the original and the reference - they should be the same
-		if !rt.DeepEqual(orig, ref) {
+		if !reflect.DeepEqual(orig, ref) {
 			return &ErrSVOrigChanged{newErrSV("the ORIGINAL value (%#v) is DIFFERENT from the REFERENCE (%#v)" +
 				" after the CLONE FIELD ----> %q <---- has been CHANGED, clone: %#v", orig, ref, field, clone)}
 		}
 
 		// Compare the clone and the original structure - they should NOT be the same
-		if rt.DeepEqual(orig, clone) {
+		if reflect.DeepEqual(orig, clone) {
 			return &ErrSVCloneOrigEqual{newErrSV(
 				"CLONE field %q has been UPDATED but the clone is EQUAL the ORIGINAL value: %#v", field, clone)}
 		}
@@ -129,7 +129,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 	inst := sv.creator()
 
 	// Convert inerface to reflect.Value
-	s := rt.ValueOf(inst).Elem()
+	s := reflect.ValueOf(inst).Elem()
 
 	// Create new user defined setters to refresh initial values
 	uSetters := make([]Setter, 0, len(sv.setters))
@@ -152,7 +152,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 		for _, setter := range append(uSetters, embSetters()...) {
 			if v := setter(f); v != nil {
 				// Set field value to v
-				f.Set(rt.ValueOf(v))
+				f.Set(reflect.ValueOf(v))
 				// Go to next field
 				goto nextField
 			}
@@ -171,7 +171,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 func structFields(si any) []string {
 	var fields []string
 
-	s := rt.ValueOf(si).Elem()
+	s := reflect.ValueOf(si).Elem()
 	for i := 0; i < s.NumField(); i++ {
 		// Filter unexported fields
 		name := s.Type().Field(i).Name
@@ -188,7 +188,7 @@ func structFields(si any) []string {
 // autoFill automatically changed the fields of the structure of supported types.
 // It returns an error if structure contains fields of unsupported types
 func (sv *StructVerifier) autoChange(si any, field string) error {
-	structVal := rt.ValueOf(si).Elem()
+	structVal := reflect.ValueOf(si).Elem()
 
 	for i := 0; i < structVal.NumField(); i++ {
 		if structVal.Type().Field(i).Name != field {
@@ -220,7 +220,7 @@ func embSetters() []Setter {
 
 	return []Setter {
 		// int64
-		func(v rt.Value) any {
+		func(v reflect.Value) any {
 			if _, ok := v.Interface().(int64); !ok {
 				return nil
 			}
@@ -231,7 +231,7 @@ func embSetters() []Setter {
 		},
 
 		// []int64
-		func(v rt.Value) any {
+		func(v reflect.Value) any {
 			if _, ok := v.Interface().([]int64); !ok {
 				return nil
 			}
@@ -248,7 +248,7 @@ func embSetters() []Setter {
 		},
 
 		// []string
-		func(v rt.Value) any {
+		func(v reflect.Value) any {
 			if _, ok := v.Interface().([]string); !ok {
 				return nil
 			}
@@ -264,7 +264,7 @@ func embSetters() []Setter {
 		},
 
 		// map[string]any
-		func(v rt.Value) any {
+		func(v reflect.Value) any {
 			if _, ok := v.Interface().(map[string]any); !ok {
 				return nil
 			}
@@ -286,16 +286,16 @@ func embSetters() []Setter {
 func embChangers() []Changer {
 		return []Changer{
 		// int64 - mult the value to initialSeed (2)
-		func(v rt.Value) bool {
+		func(v reflect.Value) bool {
 			iv, ok := v.Interface().(int64)
 			if !ok {
 				return false
 			}
-			v.Set(rt.ValueOf(iv * initialSeed))
+			v.Set(reflect.ValueOf(iv * initialSeed))
 			return true
 		},
 		// []string - concatenate the last value in the slice with itself
-		func(v rt.Value) bool {
+		func(v reflect.Value) bool {
 			ss, ok := v.Interface().([]string)
 			if !ok {
 				return false
@@ -306,7 +306,7 @@ func embChangers() []Changer {
 			return true
 		},
 		// []int64 - mult the last value in the slice to initialSeed (2)
-		func(v rt.Value) bool {
+		func(v reflect.Value) bool {
 			is, ok := v.Interface().([]int64)
 			if !ok {
 				return false
@@ -317,7 +317,7 @@ func embChangers() []Changer {
 			return true
 		},
 		// map[string]any - mult each value to initialSeed (2)
-		func(v rt.Value) bool {
+		func(v reflect.Value) bool {
 			m, ok := v.Interface().(map[string]any)
 			if !ok {
 				return false
