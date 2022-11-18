@@ -3,6 +3,7 @@ package clone
 import (
 	"testing"
 	"reflect"
+	"errors"
 )
 
 func TestErrSVError(t *testing.T) {
@@ -18,10 +19,12 @@ func TestOrigFillFail(t *testing.T) {
 		func(x any) any { return x },				// cloner function
 	)
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, because setter for bool was not porvided")
-	case *ErrSVOrigFill:
+	case errors.As(err, new(*ErrSVOrigFill)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVOrigFill", err, err)
@@ -44,10 +47,12 @@ func TestRerFillFail(t *testing.T) {
 		}
 	})
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, because reference object should not be filled")
-	case *ErrSVRefFill:
+	case errors.As(err, new(*ErrSVRefFill)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVRefFill", err, err)
@@ -70,10 +75,12 @@ func TestOrigRefEqualFail(t *testing.T) {
 		}
 	})
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, because reference object should not be filled")
-	case *ErrSVRefOrigEqual:
+	case errors.As(err, new(*ErrSVRefOrigEqual)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVRefOrigEqual", err, err)
@@ -93,10 +100,12 @@ func Test_autoChangeFail(t *testing.T) {
 		}
 	})
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, because changer for bool was not provided")
-	case *ErrSVChange:
+	case errors.As(err, new(*ErrSVChange)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVChange", err, err)
@@ -124,10 +133,11 @@ func TestOrigChangedFail(t *testing.T) {
 		return true
 	})
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, original value should be changed after clone update")
-	case *ErrSVOrigChanged:
+	case errors.As(err, new(*ErrSVOrigChanged)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVOrigChanged", err, err)
@@ -146,19 +156,19 @@ func TestCloneOrigEqualFail(t *testing.T) {
 			return nil
 		}
 	}).AddChangers(func(v reflect.Value) bool {
-		_, ok := v.Interface().([]int)
-		if !ok {
-			return false
+		if _, ok := v.Interface().([]int); ok {
+			// No not update anything
+			return true
 		}
-		// No not update anything
 
-		return true
+		return false
 	})
 
-	switch err := sv.Verify(); err.(type) {
-	case nil:
+	err := sv.Verify()
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, clone should be equal original after change")
-	case *ErrSVCloneOrigEqual:
+	case errors.As(err, new(*ErrSVCloneOrigEqual)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVCloneOrigEqual", err, err)
@@ -171,10 +181,12 @@ func Test_autoChangeFieldNotFound(t *testing.T) {
 		func(x any) any { return x },				// cloner function
 	)
 
-	switch err := sv.autoChange(&struct{B bool}{}, "NxField"); err.(type) {
-	case nil:
+	err := sv.autoChange(&struct{B bool}{}, "NxField")
+
+	switch {
+	case err == nil:
 		t.Errorf("returned no error but must fail, autoChange called for non existing field")
-	case *ErrSVFieldNotFound:
+	case errors.As(err, new(*ErrSVFieldNotFound)):
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVFieldNotFound", err, err)

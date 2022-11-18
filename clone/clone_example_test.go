@@ -5,13 +5,13 @@ import (
 	"reflect"
 )
 
-func ExampleStructVerify() {
+func ExampleStructVerifier() {
 	//
 	// Do successful verification
 	//
-	sv := NewStructVerifier(
+	verifier := NewStructVerifier(
 		// Creator function
-		func() any { return New_TestConfig() },
+		func() any { return NewTestConfig() },
 		// Cloner function
 		func(x any) any {
 			c, ok := x.(*_TestConfig)
@@ -25,7 +25,7 @@ func ExampleStructVerify() {
 		AddChangers(intSliceChanger)
 
 	// Run verification
-	err := sv.Verify()
+	err := verifier.Verify()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 	} else {
@@ -35,9 +35,9 @@ func ExampleStructVerify() {
 	//
 	// Do unsuccessful verification
 	//
-	sv = NewStructVerifier(
+	verifier = NewStructVerifier(
 		// Creator function
-		func() any { return New_TestConfig() },
+		func() any { return NewTestConfig() },
 		// Cloner function
 		func(x any) any {
 			c, ok := x.(*_TestConfig)
@@ -54,7 +54,7 @@ func ExampleStructVerify() {
 		AddChangers(intSliceChanger)
 
 	// Run verification
-	err = sv.Verify()
+	err = verifier.Verify()
 	if err == nil {
 		fmt.Println("ERROR: verifier did not catch the original structure modification")
 	} else {

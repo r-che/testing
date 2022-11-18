@@ -1,5 +1,6 @@
 package clone
 
+//nolint:unused	// Unused fields required for testing
 type _TestConfig struct {
 	Int64param	int64
 	IntList		[]int
@@ -9,9 +10,12 @@ type _TestConfig struct {
 	unexported1		bool
 	_Unexported2	any
 }
-func New_TestConfig() *_TestConfig {
+
+//nolint:revive	// no problem to return unexported type for test purposes
+func NewTestConfig() *_TestConfig {
 	return &_TestConfig{}
 }
+
 func (c *_TestConfig) Clone() *_TestConfig {
 	// Create a simple copy of the configuration
 	rv := *c

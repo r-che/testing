@@ -13,7 +13,7 @@ const (
 
 func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	// Open/closed braces
-	ob, cb := "[", "]"
+	obr, cbr := "[", "]"
 
 	// Get flags if specified
 	var flags PrintFlag
@@ -26,7 +26,7 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 		// Print slice type
 		fmt.Printf("%T", slice)
 		// Replace open/closed braces to make Go-like output
-		ob, cb = "{", "}"
+		obr, cbr = "{", "}"
 	}
 
 	// Is printing of length and capacity required?
@@ -46,7 +46,7 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 	outFmt += "v"
 
 	// Print open brace
-	fmt.Print(ob)
+	fmt.Print(obr)
 	for i, v := range slice {
 		fmt.Printf(outFmt, i, v)
 		if i != len(slice) - 1 {
@@ -57,5 +57,5 @@ func PrintSlice[T any](slice []T, flagsVariadic ...PrintFlag) {
 		}
 	}
 	// Print closed brace
-	fmt.Println(cb)
+	fmt.Println(cbr)
 }
