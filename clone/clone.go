@@ -38,7 +38,7 @@ type StructVerifierError struct {
 func (esv StructVerifierError) Error() string {
 	return esv.err.Error()
 }
-func NewErrSV(format string, args ...any) StructVerifierError {
+func newErrSV(format string, args ...any) StructVerifierError {
 	return StructVerifierError{fmt.Errorf(format, args...)}
 }
 type (
@@ -80,18 +80,18 @@ func (sv *StructVerifier) Verify() error {
 	// Make an original value
 	orig, err := sv.autoFill()
 	if err != nil {
-		return &ErrSVOrigFill{NewErrSV("cannot autofill original structure: %w", err)}
+		return &ErrSVOrigFill{newErrSV("cannot autofill original structure: %w", err)}
 	}
 
 	// And the reference to compare after clone modifications
 	ref, err := sv.autoFill()
 	if err != nil {
-		return &ErrSVRefFill{NewErrSV("cannot autofill reference structure: %w", err)}
+		return &ErrSVRefFill{newErrSV("cannot autofill reference structure: %w", err)}
 	}
 
 	// They must be the same
 	if !rt.DeepEqual(orig, ref) {
-		return &ErrSVRefOrigEqual{NewErrSV("newly created and filled structures (original and reference)" +
+		return &ErrSVRefOrigEqual{newErrSV("newly created and filled structures (original and reference)" +
 			" ARE NOT SAME: orig - %#v, ref - %#v", orig, ref)}
 	}
 
@@ -102,18 +102,18 @@ func (sv *StructVerifier) Verify() error {
 
 		// Update field in the clone
 		if err := sv.autoChange(clone, field); err != nil {
-			return &ErrSVChange{NewErrSV("cannot update field %q in the CLONE: %w", field,  err)}
+			return &ErrSVChange{newErrSV("cannot update field %q in the CLONE: %w", field,  err)}
 		}
 	
 		// Compare the original and the reference - they should be the same
 		if !rt.DeepEqual(orig, ref) {
-			return &ErrSVOrigChanged{NewErrSV("the ORIGINAL value (%#v) is DIFFERENT from the REFERENCE (%#v)" +
+			return &ErrSVOrigChanged{newErrSV("the ORIGINAL value (%#v) is DIFFERENT from the REFERENCE (%#v)" +
 				" after the CLONE FIELD ----> %q <---- has been CHANGED, clone: %#v", orig, ref, field, clone)}
 		}
 
 		// Compare the clone and the original structure - they should NOT be the same
 		if rt.DeepEqual(orig, clone) {
-			return &ErrSVCloneOrigEqual{NewErrSV(
+			return &ErrSVCloneOrigEqual{newErrSV(
 				"CLONE field %q has been UPDATED but the clone is EQUAL the ORIGINAL value: %#v", field, clone)}
 		}
 	}
@@ -207,11 +207,11 @@ func (sv *StructVerifier) autoChange(si any, field string) error {
 		}
 
 		// No suitable setter - unsupported type of field
-		return &ErrSVChange{NewErrSV("field %q has unsupported type to change - %q",
+		return &ErrSVChange{newErrSV("field %q has unsupported type to change - %q",
 							structVal.Type().Field(i).Name, f.Type())}
 	}
 
-	return &ErrSVFieldNotFound{NewErrSV("field %q was not found in the structure %#v", field, structVal.Interface())}
+	return &ErrSVFieldNotFound{newErrSV("field %q was not found in the structure %#v", field, structVal.Interface())}
 }
 
 func embSetters() []Setter {
