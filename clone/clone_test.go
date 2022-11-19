@@ -1,6 +1,7 @@
 package clone
 
 import (
+	"fmt"
 	"testing"
 	"reflect"
 	"errors"
@@ -84,6 +85,46 @@ func TestOrigRefEqualFail(t *testing.T) {
 		// OK, expected error
 	default:
 		t.Errorf("got unexpected error %T (%v), want - *ErrSVRefOrigEqual", err, err)
+	}
+}
+
+func TestCloneIncomplete(t *testing.T) {
+	type complexStruct struct {
+		Slice	[]string
+	}
+
+	err := NewStructVerifier(
+		// Creator function
+		func() any { return &complexStruct{
+			Slice:	[]string{"one", "two", "three"},
+		}},
+		// Cloner function
+		func(x any) any {
+			orig, ok := x.(*complexStruct)
+			if !ok {
+				panic(fmt.Sprintf("unsupported type to clone - %T, want - *complexStruct", x))
+			}
+
+			// Make a copy of struct
+			rv := *orig
+
+			// Allocate new memory for slice
+			rv.Slice = make([]string, len(orig.Slice))
+			// XXX Do not copy(rv.Slice, orig.Slice) to get incomplete clone
+			// XXX that causes an error on verification
+
+			// Return incomplete clone
+			return &rv
+		},
+	).Verify()
+
+	switch {
+	case err == nil:
+		t.Errorf("returned no error but must fail, because cloned object is incomplete")
+	case errors.As(err, new(*ErrSVCloneOrigNotEqual)):
+		// OK, expected error
+	default:
+		t.Errorf("got unexpected error %T (%v), want - *ErrSVCloneOrigNotEqual", err, err)
 	}
 }
 

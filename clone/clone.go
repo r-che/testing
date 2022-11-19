@@ -53,6 +53,10 @@ type (
 	// structure field was not changed after the Setter function was applied to it.
 	ErrSVCloneOrigEqual struct { structVerifierError }
 
+	// ErrSVCloneOrigNotEqual represents an error if the original and the cloned
+	// structures are different immediately after creation (before the clone changes).
+	ErrSVCloneOrigNotEqual struct { structVerifierError }
+
 	// ErrSVFieldNotFound represents the error which occurs if a clone does not
 	// contain the original structure field.
 	ErrSVFieldNotFound struct { structVerifierError }
@@ -123,6 +127,13 @@ func (sv *StructVerifier) Verify() error {
 	for _, field := range structFields(sv.creator()) {
 		// Make a clone
 		clone := sv.cloner(orig)
+
+		// Check that the clone is created correctly - immediately after creation
+		// it should be the same as the original
+		if !reflect.DeepEqual(orig, clone) {
+			return &ErrSVCloneOrigNotEqual{newErrSV("newly created clone is not the same as the original:" +
+				" orig - %#v, clone - %#v", orig, clone)}
+		}
 
 		// Update field in the clone
 		if err := sv.autoChange(clone, field); err != nil {
