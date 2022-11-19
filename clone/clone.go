@@ -29,8 +29,6 @@ type StructVerifier struct {
 	changers	[]Changer		// user defined changers
 }
 
-const initialSeed = 2
-
 //
 // Errors
 //
@@ -183,7 +181,7 @@ func (sv *StructVerifier) autoFill() (any, error) {
 		}
 
 		// Try to set values using user defined and embedded setters
-		for _, setter := range append(uSetters, embSetters()...) {
+		for _, setter := range append(uSetters, EmbSetters()...) {
 			if v := setter(f); v != nil {
 				// Set field value to v
 				f.Set(reflect.ValueOf(v))
@@ -233,7 +231,7 @@ func (sv *StructVerifier) autoChange(si any, field string) error {
 		f := structVal.Field(i)
 
 		// Try to change values using user defined and embedded changers
-		for _, changer := range append(sv.changers, embChangers()...) {
+		for _, changer := range append(sv.changers, EmbChangers()...) {
 			if changer(f) {
 				// Ok, field found and updated
 				return nil

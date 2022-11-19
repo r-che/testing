@@ -6,11 +6,26 @@ import (
 	"reflect"
 )
 
-func embSetters() []Setter {
+const initialSeed = 2
+
+//nolint:cyclop	// In fact, there are no cyclops there
+func EmbSetters() []Setter {
 	var i64v int64
+	var intVal int
 	nStrs := int(initialSeed)
 
 	return []Setter {
+		// int
+		func(v reflect.Value) any {
+			if _, ok := v.Interface().(int); !ok {
+				return nil
+			}
+
+			intVal++
+
+			return intVal
+		},
+
 		// int64
 		func(v reflect.Value) any {
 			if _, ok := v.Interface().(int64); !ok {
@@ -20,6 +35,23 @@ func embSetters() []Setter {
 			i64v++
 
 			return i64v
+		},
+
+		// []int
+		func(v reflect.Value) any {
+			if _, ok := v.Interface().([]int); !ok {
+				return nil
+			}
+
+			intVal++
+
+			l := intVal * initialSeed	// slice length
+			s := make([]int, 0, l)
+			for i := 0; i < l; i++ {
+				s = append(s, intVal + i)
+			}
+
+			return s
 		},
 
 		// []int64
@@ -74,9 +106,18 @@ func embSetters() []Setter {
 	}
 }
 
-// Embedded changers
-func embChangers() []Changer {
+func EmbChangers() []Changer {
 	return []Changer{
+		// int - mult the value to initialSeed (2)
+		func(v reflect.Value) bool {
+			iv, ok := v.Interface().(int)
+			if !ok {
+				return false
+			}
+			v.Set(reflect.ValueOf(iv * initialSeed))
+			return true
+		},
+
 		// int64 - mult the value to initialSeed (2)
 		func(v reflect.Value) bool {
 			iv, ok := v.Interface().(int64)
@@ -86,17 +127,19 @@ func embChangers() []Changer {
 			v.Set(reflect.ValueOf(iv * initialSeed))
 			return true
 		},
-		// []string - concatenate the last value in the slice with itself
+
+		// []int - mult the last value in the slice to initialSeed (2)
 		func(v reflect.Value) bool {
-			ss, ok := v.Interface().([]string)
+			is, ok := v.Interface().([]int)
 			if !ok {
 				return false
 			}
 
-			ss[len(ss)-1] += ss[len(ss)-1]
+			is[len(is)-1] *= initialSeed
 
 			return true
 		},
+
 		// []int64 - mult the last value in the slice to initialSeed (2)
 		func(v reflect.Value) bool {
 			is, ok := v.Interface().([]int64)
@@ -108,6 +151,19 @@ func embChangers() []Changer {
 
 			return true
 		},
+
+		// []string - concatenate the last value in the slice with itself
+		func(v reflect.Value) bool {
+			ss, ok := v.Interface().([]string)
+			if !ok {
+				return false
+			}
+
+			ss[len(ss)-1] += ss[len(ss)-1]
+
+			return true
+		},
+
 		// map[string]any - mult each value to initialSeed (2)
 		func(v reflect.Value) bool {
 			m, ok := v.Interface().(map[string]any)
