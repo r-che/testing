@@ -2,7 +2,7 @@ package debug
 
 import "fmt"
 
-type PrintFlags byte
+type PrintFlags uint32
 
 func (pf PrintFlags) Is(flagsSet PrintFlags) bool {
 	return pf & flagsSet != 0
