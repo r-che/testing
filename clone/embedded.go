@@ -9,6 +9,17 @@ import (
 const initialSeed = 2
 
 //nolint:cyclop	// In fact, there are no cyclops there
+/*
+EmbSetters returns a set of embedded [Setter] functions for the following field types:
+
+  * int
+  * int64
+  * []int
+  * []int64
+  * []string
+  * map[string]any
+
+*/
 func EmbSetters() []Setter {
 	var i64v int64
 	var intVal int
@@ -106,6 +117,17 @@ func EmbSetters() []Setter {
 	}
 }
 
+/*
+EmbChangers returns a set of embedded [Changer] functions for the following field types:
+
+  * int
+  * int64
+  * []int
+  * []int64
+  * []string
+  * map[string]any
+
+*/
 func EmbChangers() []Changer {
 	return []Changer{
 		// int - mult the value to initialSeed (2)

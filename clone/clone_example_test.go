@@ -55,13 +55,15 @@ func Example_verifySuccess() {
 	}
 
 	// Provide user-defined changer function for []int fields
-	// intSliceChanger multiplies the last value in the slice []int by 2
+	// intSliceChanger multiplies each []int slice element by two
 	intSliceChanger := func(v reflect.Value) bool {
 		is, ok := v.Interface().([]int)
 		if !ok {
 			return false
 		}
-		is[len(is)-1] *= 2
+		for i := range is {
+			is[i] *= 2
+		}
 		return true
 	}
 

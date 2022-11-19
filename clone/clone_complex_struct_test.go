@@ -51,32 +51,34 @@ func (c *testComplexStruct) Clone() *testComplexStruct {
 
 // intSliceSetter creates a Setter function that will used to fill fields with the type []int
 func intSliceSetter() Setter {
-	var iv int
+	var initVal int
 	return func(v reflect.Value) any {
 		if _, ok := v.Interface().([]int); !ok {
 			return nil
 		}
 
-		iv++
+		initVal++
 
-		l := iv*2       // slice length
+		l := initVal * 2	// slice length
 		s := make([]int, 0, l)
 		for i := 0; i < l; i++ {
-			s = append(s, iv + i)
+			s = append(s, initVal + i)
 		}
 
 		return s
 	}
 }
 
-// intSliceChanger multiplies the last value in the slice []int by 2
+// intSliceChanger multiplies each []int slice element by two
 func intSliceChanger(v reflect.Value) bool {
 	is, ok := v.Interface().([]int)
 	if !ok {
 		return false
 	}
 
-	is[len(is)-1] *= 2
+	for i := range is {
+		is[i] *= 2
+	}
 
 	return true
 }
