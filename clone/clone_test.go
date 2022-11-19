@@ -88,6 +88,57 @@ func TestOrigRefEqualFail(t *testing.T) {
 	}
 }
 
+func TestCloneEmbedded(t *testing.T) {
+	type complexStruct struct {
+		IntVal		int
+		Int64Val	int64
+		IntSlice	[]int
+		Int64Slice	[]int64
+		StrSlice	[]string
+		Map			map[string]any
+	}
+
+	if err := NewStructVerifier(
+		// Creator function
+		func() any {
+			return &complexStruct{
+				IntVal:		2022,
+				Int64Val:	19851996,
+				IntSlice:	[]int{1, 2, 3, 4},
+				Int64Slice:	[]int64{1111, 2222, 3333, 4444},
+				StrSlice:	[]string{"one", "two", "three", "four"},
+				Map:		map[string]any{"first": nil, "second": 5, "third": false, "fourth": "string"},
+			}
+		},
+		// Cloner function
+		func(x any) any {
+			orig, ok := x.(*complexStruct)
+			if !ok {
+				panic(fmt.Sprintf("unsupported type to clone - %T, want - *complexStruct", x))
+			}
+
+			// Make a copy of struct
+			rv := *orig
+
+			// Copy all complex data
+			rv.IntSlice = make([]int, len(orig.IntSlice))
+			copy(rv.IntSlice, orig.IntSlice)
+			rv.Int64Slice = make([]int64, len(orig.Int64Slice))
+			copy(rv.Int64Slice, orig.Int64Slice)
+			rv.StrSlice = make([]string, len(orig.StrSlice))
+			copy(rv.StrSlice, orig.StrSlice)
+			rv.Map = make(map[string]any, len(orig.Map))
+			for k, v := range orig.Map {
+				rv.Map[k] = v
+			}
+
+			return &rv
+		},
+	).Verify(); err != nil {
+		t.Errorf("complex structure verification failed: %v", err)
+	}
+}
+
 func TestCloneIncomplete(t *testing.T) {
 	type complexStruct struct {
 		Slice	[]string
